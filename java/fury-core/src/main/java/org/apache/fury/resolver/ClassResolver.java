@@ -1423,6 +1423,10 @@ public class ClassResolver {
   public void readClassDefs(MemoryBuffer buffer) {
     MetaContext metaContext = fury.getSerializationContext().getMetaContext();
     int classDefOffset = buffer.readInt32();
+    if (classDefOffset == -1) {
+      // -1 means no ClassDefs are available to read.
+      return;
+    }
     int readerIndex = buffer.readerIndex();
     buffer.readerIndex(classDefOffset);
     int numClassDefs = buffer.readVarUint32Small14();
