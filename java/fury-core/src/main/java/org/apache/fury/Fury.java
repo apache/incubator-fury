@@ -45,6 +45,7 @@ import org.apache.fury.resolver.ClassInfo;
 import org.apache.fury.resolver.ClassInfoHolder;
 import org.apache.fury.resolver.ClassResolver;
 import org.apache.fury.resolver.MapRefResolver;
+import org.apache.fury.resolver.MetaContext;
 import org.apache.fury.resolver.MetaStringResolver;
 import org.apache.fury.resolver.NoRefResolver;
 import org.apache.fury.resolver.RefResolver;
@@ -310,12 +311,14 @@ public final class Fury implements BaseFury {
       buffer.writeInt32(-1); // preserve 4-byte for nativeObjects start offsets.
     }
     // reduce caller stack
-    if (!refResolver.writeRefOrNull(buffer, obj)) {
+    boolean isNull = refResolver.writeRefOrNull(buffer, obj);
+    if (!isNull) {
       ClassInfo classInfo = classResolver.getOrUpdateClassInfo(obj.getClass());
       classResolver.writeClass(buffer, classInfo);
       writeData(buffer, classInfo, obj);
     }
-    if (shareMeta) {
+    MetaContext metaContext = getSerializationContext().getMetaContext();
+    if (shareMeta && !isNull && !metaContext.writingClassDefs.isEmpty()) {
       buffer.putInt32(startOffset, buffer.writerIndex());
       classResolver.writeClassDefs(buffer);
     }
@@ -1031,14 +1034,15 @@ public final class Fury implements BaseFury {
         if (!refResolver.writeRefOrNull(buffer, obj)) {
           ClassInfo classInfo = classResolver.getOrUpdateClassInfo(obj.getClass());
           writeData(buffer, classInfo, obj);
+          MetaContext metaContext = getSerializationContext().getMetaContext();
+          if (!metaContext.writingClassDefs.isEmpty()) {
+            buffer.putInt32(startOffset, buffer.writerIndex());
+            classResolver.writeClassDefs(buffer);
+          }
         }
-        buffer.putInt32(startOffset, buffer.writerIndex());
-        classResolver.writeClassDefs(buffer);
-      } else {
-        if (!refResolver.writeRefOrNull(buffer, obj)) {
-          ClassInfo classInfo = classResolver.getOrUpdateClassInfo(obj.getClass());
-          writeData(buffer, classInfo, obj);
-        }
+      } else if (!refResolver.writeRefOrNull(buffer, obj)) {
+        ClassInfo classInfo = classResolver.getOrUpdateClassInfo(obj.getClass());
+        writeData(buffer, classInfo, obj);
       }
     } catch (StackOverflowError t) {
       throw processStackOverflowError(t);

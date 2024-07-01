@@ -560,4 +560,17 @@ public class FuryTest extends FuryTestBase {
       Assert.assertTrue(e.getMessage().contains("[a, b]"));
     }
   }
+
+  @Test
+  public void testNullObjSerAndDe() {
+    Fury fury =
+        Fury.builder()
+            .withRefTracking(true)
+            .requireClassRegistration(false)
+            .withMetaShare(true)
+            .build();
+    byte[] bytes = fury.serializeJavaObjectAndClass(null);
+    Object obj = fury.deserializeJavaObjectAndClass(bytes);
+    assertNull(obj);
+  }
 }
