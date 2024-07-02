@@ -20,6 +20,7 @@
 package org.apache.fury.serializer.collection;
 
 import java.util.Map;
+import java.util.Objects;
 import org.apache.fury.Fury;
 import org.apache.fury.memory.MemoryBuffer;
 
@@ -34,10 +35,41 @@ public class MapSerializer<T extends Map> extends AbstractMapSerializer<T> {
     super(fury, cls, supportCodegenHook);
   }
 
+  public MapSerializer(Fury fury, Class<T> cls, boolean supportCodegenHook, boolean immutable) {
+    super(fury, cls, supportCodegenHook, immutable);
+  }
+
   @Override
   public Map onMapWrite(MemoryBuffer buffer, T value) {
     buffer.writeVarUint32Small7(value.size());
     return value;
+  }
+
+  @Override
+  public T copy(T originMap) {
+    if (isImmutable()) {
+      return originMap;
+    }
+    Map newMap;
+    if (!needToCopyRef) {
+      newMap = newMap(originMap);
+      copyEntry(originMap, newMap);
+      return (T) newMap;
+    }
+    Map copyMap = (Map) fury.getCopyObject(originMap);
+    if (Objects.nonNull(copyMap)) {
+      return (T) copyMap;
+    }
+    fury.incCopyDepth(1);
+    newMap = newMap(originMap);
+    fury.copyReference(originMap, newMap);
+    copyEntry(originMap, newMap);
+    fury.incCopyDepth(-1);
+    return (T) newMap;
+  }
+
+  public void copyEntry(T originMap, Map newMap) {
+    originMap.forEach((k, v) -> newMap.put(fury.copy(k), fury.copy(v)));
   }
 
   @Override

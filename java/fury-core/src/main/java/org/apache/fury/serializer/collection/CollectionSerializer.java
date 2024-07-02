@@ -20,6 +20,7 @@
 package org.apache.fury.serializer.collection;
 
 import java.util.Collection;
+import java.util.Objects;
 import org.apache.fury.Fury;
 import org.apache.fury.memory.MemoryBuffer;
 
@@ -34,6 +35,11 @@ public class CollectionSerializer<T extends Collection> extends AbstractCollecti
     super(fury, type, supportCodegenHook);
   }
 
+  public CollectionSerializer(
+      Fury fury, Class<T> type, boolean supportCodegenHook, boolean immutable) {
+    super(fury, type, supportCodegenHook, immutable);
+  }
+
   @Override
   public Collection onCollectionWrite(MemoryBuffer buffer, T value) {
     buffer.writeVarUint32Small7(value.size());
@@ -43,6 +49,35 @@ public class CollectionSerializer<T extends Collection> extends AbstractCollecti
   @Override
   public T onCollectionRead(Collection collection) {
     return (T) collection;
+  }
+
+  @Override
+  public T copy(T originCollection) {
+    if (isImmutable()) {
+      return originCollection;
+    }
+    Collection newCollection;
+    if (!needToCopyRef) {
+      newCollection = newCollection(originCollection);
+      copyElements(originCollection, newCollection);
+      return (T) newCollection;
+    }
+    newCollection = (Collection) fury.getCopyObject(originCollection);
+    if (Objects.nonNull(newCollection)) {
+      return (T) newCollection;
+    }
+    fury.incCopyDepth(1);
+    newCollection = newCollection(originCollection);
+    fury.copyReference(originCollection, newCollection);
+    copyElements(originCollection, newCollection);
+    fury.incCopyDepth(-1);
+    return (T) newCollection;
+  }
+
+  public void copyElements(T originCollection, Collection newCollection) {
+    for (Object element : originCollection) {
+      newCollection.add(fury.copy(element));
+    }
   }
 
   @Override

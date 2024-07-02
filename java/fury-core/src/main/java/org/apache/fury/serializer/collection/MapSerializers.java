@@ -26,6 +26,8 @@ import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
@@ -145,12 +147,28 @@ public class MapSerializers {
       fury.getRefResolver().reference(map);
       return map;
     }
+
+    @Override
+    public Map newMap(Map originMap) {
+      Comparator comparator = ((SortedMap) originMap).comparator();
+      Map map;
+      if (Objects.equals(type, TreeMap.class)) {
+        map = new TreeMap(comparator);
+      } else {
+        try {
+          map = (Map) constructor.invoke(comparator);
+        } catch (Throwable e) {
+          throw new RuntimeException(e);
+        }
+      }
+      return map;
+    }
   }
 
   public static final class EmptyMapSerializer extends MapSerializer<Map<?, ?>> {
 
     public EmptyMapSerializer(Fury fury, Class<Map<?, ?>> cls) {
-      super(fury, cls, false);
+      super(fury, cls, false, true);
     }
 
     @Override
@@ -181,7 +199,7 @@ public class MapSerializers {
 
   public static final class EmptySortedMapSerializer extends MapSerializer<SortedMap<?, ?>> {
     public EmptySortedMapSerializer(Fury fury, Class<SortedMap<?, ?>> cls) {
-      super(fury, cls, false);
+      super(fury, cls, false, true);
     }
 
     @Override
@@ -197,6 +215,12 @@ public class MapSerializers {
 
     public SingletonMapSerializer(Fury fury, Class<Map<?, ?>> cls) {
       super(fury, cls, false);
+    }
+
+    @Override
+    public Map<?, ?> copy(Map<?, ?> originMap) {
+      Entry<?, ?> entry = originMap.entrySet().iterator().next();
+      return Collections.singletonMap(fury.copy(entry.getKey()), fury.copy(entry.getValue()));
     }
 
     @Override
@@ -274,6 +298,22 @@ public class MapSerializers {
     }
 
     @Override
+    public Map newMap(Map originMap) {
+      Comparator comparator = ((ConcurrentSkipListMap) originMap).comparator();
+      Map map;
+      if (Objects.equals(type, ConcurrentSkipListMap.class)) {
+        map = new ConcurrentSkipListMap(comparator);
+      } else {
+        try {
+          map = (Map) constructor.invoke(comparator);
+        } catch (Throwable e) {
+          throw new RuntimeException(e);
+        }
+      }
+      return map;
+    }
+
+    @Override
     public short getXtypeId() {
       return Fury.NOT_SUPPORT_CROSS_LANGUAGE;
     }
@@ -310,6 +350,11 @@ public class MapSerializers {
       setNumElements(buffer.readVarUint32Small7());
       Class<?> keyType = fury.getClassResolver().readClassInfo(buffer).getCls();
       return new EnumMap(keyType);
+    }
+
+    @Override
+    public EnumMap copy(EnumMap originMap) {
+      return new EnumMap(originMap);
     }
   }
 
@@ -381,6 +426,11 @@ public class MapSerializers {
     }
 
     @Override
+    public T copy(T value) {
+      return dataSerializer.copy(value);
+    }
+
+    @Override
     public T read(MemoryBuffer buffer) {
       return dataSerializer.read(buffer);
     }
@@ -420,6 +470,11 @@ public class MapSerializers {
     @Override
     public void write(MemoryBuffer buffer, T value) {
       serializer.write(buffer, value);
+    }
+
+    @Override
+    public T copy(T value) {
+      return (T) serializer.copy(value);
     }
   }
 
